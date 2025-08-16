@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { ProductCard } from "@/components/product-card"
 import { ProductFilters } from "@/components/product-filters"
-import { CartDrawer } from "@/components/cart-drawer"
 import { products, getProductsByCategory, searchProducts, filterProductsByPrice, sortProducts } from "@/lib/products"
 import { WalletProvider } from "@/components/wallet-provider"
 import { CartProvider } from "@/components/cart-provider"
@@ -15,6 +15,7 @@ import { useCart } from "@/components/cart-provider"
 import Link from "next/link"
 
 function ProductsPageContent() {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000])
@@ -122,20 +123,19 @@ function ProductsPageContent() {
                 </Button>
               )}
 
-              <CartDrawer>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="relative bg-transparent hover:scale-105 transition-transform"
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  {totalItems > 0 && (
-                    <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs animate-scale-in">
-                      {totalItems}
-                    </Badge>
-                  )}
-                </Button>
-              </CartDrawer>
+              <Button
+                variant="outline"
+                size="sm"
+                className="relative bg-transparent hover:scale-105 transition-transform"
+                onClick={() => router.push("/cart")}
+              >
+                <ShoppingCart className="w-4 h-4" />
+                {totalItems > 0 && (
+                  <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs animate-scale-in">
+                    {totalItems}
+                  </Badge>
+                )}
+              </Button>
 
               {/* Mobile menu button */}
               <Button

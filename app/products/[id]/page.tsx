@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, use } from "react"
+import { useRouter } from "next/navigation"
 import { getProductById } from "@/lib/products"
 import { WalletProvider } from "@/components/wallet-provider"
 import { CartProvider } from "@/components/cart-provider"
-import { CartDrawer } from "@/components/cart-drawer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,6 +20,7 @@ interface ProductPageProps {
 }
 
 function ProductPageContent({ params }: ProductPageProps) {
+  const router = useRouter()
   const resolvedParams = use(params)
   const product = getProductById(resolvedParams.id)
 
@@ -116,20 +117,19 @@ function ProductPageContent({ params }: ProductPageProps) {
                 </Button>
               )}
 
-              <CartDrawer>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="relative bg-transparent hover:scale-105 transition-transform"
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  {totalItems > 0 && (
-                    <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs animate-scale-in">
-                      {totalItems}
-                    </Badge>
-                  )}
-                </Button>
-              </CartDrawer>
+              <Button
+                variant="outline"
+                size="sm"
+                className="relative bg-transparent hover:scale-105 transition-transform"
+                onClick={() => router.push("/cart")}
+              >
+                <ShoppingCart className="w-4 h-4" />
+                {totalItems > 0 && (
+                  <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs animate-scale-in">
+                    {totalItems}
+                  </Badge>
+                )}
+              </Button>
 
               {/* Mobile menu button */}
               <Button
