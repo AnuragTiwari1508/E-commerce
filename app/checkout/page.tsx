@@ -1,315 +1,428 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import { RazorpayCheckout } from "@/components/payment/razorpay-checkout"
+import { AddressMap } from "@/components/address-map"
 import { useCart } from "@/components/cart-provider"
-import { usePayment } from "@/components/payment-provider"
-import { useWallet } from "@/components/wallet-provider"
 import { useToast } from "@/hooks/use-toast"
-import { CreditCard, Wallet, Smartphone, Building, Plus, MapPin, Phone } from "lucide-react"
+import { Truck, MapPin, User, Mail, Phone, CreditCard, Package } from "lucide-react"
+
+interface ShippingInfo {
+  fullName: string
+  email: string
+  phone: string
+  address: string
+  city: string
+  state: string
+  zipCode: string
+  country: string
+}
 
 export default function CheckoutPage() {
   const router = useRouter()
   const { items, totalPrice, clearCart } = useCart()
-  const { paymentMethods, addresses, processPayment } = usePayment()
-  const { isConnected, balance } = useWallet()
   const { toast } = useToast()
+  const [currentStep, setCurrentStep] = useState(1)
+  const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
+    fullName: "",
+    email: "",
+    phone: "",
+    address: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "India",
+  })
 
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(paymentMethods[0]?.id || "")
-  const [selectedAddress, setSelectedAddress] = useState(addresses[0]?.id || "")
-  const [promoCode, setPromoCode] = useState("")
-  const [isProcessing, setIsProcessing] = useState(false)
-
-  // Calculate totals
-  const subtotal = totalPrice
-  const tax = subtotal * 0.18
-  const shipping = subtotal > 500 ? 0 : 50
-  let discount = 0
-
-  // Apply promo code discount
-  if (promoCode) {
-    switch (promoCode.toUpperCase()) {
-      case "SAVE10":
-        discount = subtotal * 0.1
-        break
-      case "FIRST20":
-        discount = subtotal * 0.2
-        break
-      case "CRYPTO15":
-        const selectedMethod = paymentMethods.find((pm) => pm.id === selectedPaymentMethod)
-        if (selectedMethod?.type === "wallet") {
-          discount = subtotal * 0.15
-        }
-        break
-    }
-  }
-
-  const total = subtotal + tax + shipping - discount
-
-  const getPaymentIcon = (type: string) => {
-    switch (type) {
-      case "card":
-        return <CreditCard className="h-4 w-4" />
-      case "wallet":
-        return <Wallet className="h-4 w-4" />
-      case "upi":
-        return <Smartphone className="h-4 w-4" />
-      case "netbanking":
-        return <Building className="h-4 w-4" />
-      default:
-        return <CreditCard className="h-4 w-4" />
-    }
-  }
-
-  const handleCheckout = async () => {
+  useEffect(() => {
     if (items.length === 0) {
+      router.push("/cart")
+    }
+  }, [items, router])
+
+  const shippingCost = totalPrice > 500 ? 0 : 99
+  const taxAmount = Math.round(totalPrice * 0.18) // 18% GST
+  const finalTotal = totalPrice + shippingCost + taxAmount
+
+  const handleShippingSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // Validate shipping info
+    const requiredFields: (keyof ShippingInfo)[] = [
+      'fullName', 'email', 'phone', 'address', 'city', 'state', 'zipCode'
+    ]
+    
+    const missingFields = requiredFields.filter(field => !shippingInfo[field])
+    
+    if (missingFields.length > 0) {
       toast({
-        title: "Cart is empty",
-        description: "Add some items to your cart before checkout",
+        title: "Missing Information",
+        description: "Please fill in all required shipping details.",
         variant: "destructive",
       })
       return
     }
 
-    if (!selectedPaymentMethod || !selectedAddress) {
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(shippingInfo.email)) {
       toast({
-        title: "Missing information",
-        description: "Please select a payment method and address",
+        title: "Invalid Email",
+        description: "Please enter a valid email address.",
         variant: "destructive",
       })
       return
     }
 
-    // Check wallet balance for crypto payments
-    const selectedMethod = paymentMethods.find((pm) => pm.id === selectedPaymentMethod)
-    if (selectedMethod?.type === "wallet") {
-      if (!isConnected) {
-        toast({
-          title: "Wallet not connected",
-          description: "Please connect your wallet to pay with crypto",
-          variant: "destructive",
-        })
-        return
-      }
-
-      const ethTotal = total / 2000 // Assuming 1 ETH = ₹2000 for demo
-      if (Number.parseFloat(balance) < ethTotal) {
-        toast({
-          title: "Insufficient balance",
-          description: `You need ${ethTotal.toFixed(4)} ETH but only have ${balance} ETH`,
-          variant: "destructive",
-        })
-        return
-      }
-    }
-
-    setIsProcessing(true)
-
-    try {
-      const result = await processPayment(items, selectedPaymentMethod, selectedAddress, promoCode)
-
-      if (result.success) {
-        clearCart()
-        toast({
-          title: "Order placed successfully!",
-          description: `Order ID: ${result.orderId}`,
-        })
-        router.push(`/orders/${result.orderId}`)
-      } else {
-        toast({
-          title: "Payment failed",
-          description: result.error || "Something went wrong",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
+    // Phone validation
+    const phoneRegex = /^[6-9]\d{9}$/
+    if (!phoneRegex.test(shippingInfo.phone)) {
       toast({
-        title: "Error",
-        description: "Failed to process payment",
+        title: "Invalid Phone Number",
+        description: "Please enter a valid 10-digit phone number.",
         variant: "destructive",
       })
-    } finally {
-      setIsProcessing(false)
+      return
     }
+
+    setCurrentStep(2)
+  }
+
+  const handlePaymentSuccess = (response: any) => {
+    toast({
+      title: "Order Placed Successfully!",
+      description: `Payment ID: ${response.razorpay_payment_id}`,
+    })
+    
+    clearCart()
+    router.push(`/orders/${response.razorpay_order_id}`)
+  }
+
+  const handlePaymentFailure = (error: any) => {
+    console.error("Payment failed:", error)
+    toast({
+      title: "Payment Failed",
+      description: "Please try again or contact support.",
+      variant: "destructive",
+    })
+  }
+
+  const orderDetails = {
+    orderId: `ORDER_${Date.now()}`,
+    items: items.map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+    })),
+    customerInfo: {
+      name: shippingInfo.fullName,
+      email: shippingInfo.email,
+      phone: shippingInfo.phone,
+    },
   }
 
   if (items.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Your cart is empty</h1>
-          <Button onClick={() => router.push("/products")}>Continue Shopping</Button>
-        </div>
+      <div className="container mx-auto px-4 py-8 text-center">
+        <h1 className="text-2xl font-bold mb-4">Your cart is empty</h1>
+        <p className="text-muted-foreground mb-4">Add some items to your cart to continue</p>
+        <Button asChild>
+          <a href="/products">Continue Shopping</a>
+        </Button>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Checkout</h1>
+    <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Checkout</h1>
+        <div className="flex items-center space-x-4">
+          <div className={`flex items-center space-x-2 ${currentStep >= 1 ? 'text-primary' : 'text-muted-foreground'}`}>
+            <div className={`rounded-full p-2 ${currentStep >= 1 ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+              <Truck className="h-4 w-4" />
+            </div>
+            <span className="font-medium">Shipping</span>
+          </div>
+          <div className={`h-px flex-1 ${currentStep >= 2 ? 'bg-primary' : 'bg-border'}`} />
+          <div className={`flex items-center space-x-2 ${currentStep >= 2 ? 'text-primary' : 'text-muted-foreground'}`}>
+            <div className={`rounded-full p-2 ${currentStep >= 2 ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+              <CreditCard className="h-4 w-4" />
+            </div>
+            <span className="font-medium">Payment</span>
+          </div>
+        </div>
+      </div>
 
-      <div className="grid lg:grid-cols-2 gap-8">
-        {/* Left Column - Forms */}
-        <div className="space-y-6">
-          {/* Shipping Address */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5" />
-                Shipping Address
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RadioGroup value={selectedAddress} onValueChange={setSelectedAddress}>
-                {addresses.map((address) => (
-                  <div key={address.id} className="flex items-start space-x-2">
-                    <RadioGroupItem value={address.id!} id={address.id} className="mt-1" />
-                    <Label htmlFor={address.id} className="flex-1 cursor-pointer">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{address.name}</span>
-                          {address.isDefault && <Badge variant="secondary">Default</Badge>}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            {address.phone}
-                          </div>
-                          <div>{address.addressLine1}</div>
-                          {address.addressLine2 && <div>{address.addressLine2}</div>}
-                          <div>
-                            {address.city}, {address.state} {address.pincode}
-                          </div>
-                        </div>
-                      </div>
-                    </Label>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+          {currentStep === 1 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Shipping Information
+                </CardTitle>
+                <CardDescription>
+                  Please provide your shipping details for delivery
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleShippingSubmit} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName">
+                        <User className="h-4 w-4 inline mr-1" />
+                        Full Name *
+                      </Label>
+                      <Input
+                        id="fullName"
+                        value={shippingInfo.fullName}
+                        onChange={(e) =>
+                          setShippingInfo({ ...shippingInfo, fullName: e.target.value })
+                        }
+                        placeholder="Enter your full name"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">
+                        <Mail className="h-4 w-4 inline mr-1" />
+                        Email Address *
+                      </Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={shippingInfo.email}
+                        onChange={(e) =>
+                          setShippingInfo({ ...shippingInfo, email: e.target.value })
+                        }
+                        placeholder="Enter your email"
+                        required
+                      />
+                    </div>
                   </div>
-                ))}
-              </RadioGroup>
-              <Button variant="outline" className="mt-4 w-full bg-transparent">
-                <Plus className="h-4 w-4 mr-2" />
-                Add New Address
-              </Button>
-            </CardContent>
-          </Card>
 
-          {/* Payment Method */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment Method</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RadioGroup value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
-                {paymentMethods.map((method) => (
-                  <div key={method.id} className="flex items-center space-x-2">
-                    <RadioGroupItem value={method.id} id={method.id} />
-                    <Label htmlFor={method.id} className="flex items-center gap-3 cursor-pointer flex-1">
-                      {getPaymentIcon(method.type)}
-                      <div>
-                        <div className="font-medium">{method.name}</div>
-                        <div className="text-sm text-muted-foreground">{method.details}</div>
-                      </div>
-                      {method.isDefault && <Badge variant="secondary">Default</Badge>}
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">
+                      <Phone className="h-4 w-4 inline mr-1" />
+                      Phone Number *
                     </Label>
+                    <Input
+                      id="phone"
+                      value={shippingInfo.phone}
+                      onChange={(e) =>
+                        setShippingInfo({ ...shippingInfo, phone: e.target.value })
+                      }
+                      placeholder="Enter your phone number"
+                      maxLength={10}
+                      required
+                    />
                   </div>
-                ))}
-              </RadioGroup>
-              <Button variant="outline" className="mt-4 w-full bg-transparent">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Payment Method
-              </Button>
-            </CardContent>
-          </Card>
 
-          {/* Promo Code */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Promo Code</CardTitle>
-              <CardDescription>Enter a promo code to get discount</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter promo code"
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value)}
-                />
-                <Button variant="outline">Apply</Button>
-              </div>
-              <div className="mt-2 text-sm text-muted-foreground">
-                Try: SAVE10, FIRST20, CRYPTO15 (for wallet payments)
-              </div>
-            </CardContent>
-          </Card>
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Address *</Label>
+                    <Textarea
+                      id="address"
+                      value={shippingInfo.address}
+                      onChange={(e) =>
+                        setShippingInfo({ ...shippingInfo, address: e.target.value })
+                      }
+                      placeholder="Enter your complete address"
+                      rows={3}
+                      required
+                    />
+                  </div>
+
+                  {/* Interactive Map for Address Selection */}
+                  <div className="space-y-2">
+                    <Label>Select Location on Map</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Click on the map to automatically fill address details
+                    </p>
+                    <div className="rounded-lg border overflow-hidden">
+                      <AddressMap
+                        onAddressSelect={(address) => {
+                          setShippingInfo({
+                            ...shippingInfo,
+                            address: address.formattedAddress || '',
+                            city: address.city || '',
+                            state: address.state || '',
+                            zipCode: address.zipCode || '',
+                          })
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="city">City *</Label>
+                      <Input
+                        id="city"
+                        value={shippingInfo.city}
+                        onChange={(e) =>
+                          setShippingInfo({ ...shippingInfo, city: e.target.value })
+                        }
+                        placeholder="City"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="state">State *</Label>
+                      <Input
+                        id="state"
+                        value={shippingInfo.state}
+                        onChange={(e) =>
+                          setShippingInfo({ ...shippingInfo, state: e.target.value })
+                        }
+                        placeholder="State"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="zipCode">ZIP Code *</Label>
+                      <Input
+                        id="zipCode"
+                        value={shippingInfo.zipCode}
+                        onChange={(e) =>
+                          setShippingInfo({ ...shippingInfo, zipCode: e.target.value })
+                        }
+                        placeholder="ZIP Code"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <Button type="submit" size="lg" className="w-full">
+                    Continue to Payment
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {currentStep === 2 && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5" />
+                    Delivery Address
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <p className="font-medium">{shippingInfo.fullName}</p>
+                    <p className="text-sm text-muted-foreground">{shippingInfo.address}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {shippingInfo.city}, {shippingInfo.state} - {shippingInfo.zipCode}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      📧 {shippingInfo.email} | 📞 {shippingInfo.phone}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => setCurrentStep(1)}
+                  >
+                    Edit Address
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <RazorpayCheckout
+                amount={finalTotal}
+                currency="INR"
+                orderDetails={orderDetails}
+                onSuccess={handlePaymentSuccess}
+                onFailure={handlePaymentFailure}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Right Column - Order Summary */}
+        {/* Order Summary */}
         <div>
           <Card className="sticky top-4">
             <CardHeader>
-              <CardTitle>Order Summary</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Order Summary
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Order Items */}
               <div className="space-y-3">
                 {items.map((item) => (
-                  <div key={item.id} className="flex items-center gap-3">
-                    <img
-                      src={item.image || "/placeholder.svg"}
-                      alt={item.name}
-                      className="w-12 h-12 object-cover rounded"
-                    />
+                  <div key={`${item.id}-${item.variant || ''}`} className="flex justify-between text-sm">
                     <div className="flex-1">
-                      <div className="font-medium text-sm">{item.name}</div>
-                      <div className="text-sm text-muted-foreground">Qty: {item.quantity}</div>
+                      <p className="font-medium line-clamp-2">{item.name}</p>
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <span>Qty: {item.quantity}</span>
+                        {item.variant && <Badge variant="outline" className="text-xs">{item.variant}</Badge>}
+                      </div>
                     </div>
-                    <div className="font-medium">₹{(item.price * item.quantity).toFixed(2)}</div>
+                    <div className="text-right">
+                      <p className="font-medium">₹{(item.price * item.quantity).toLocaleString()}</p>
+                    </div>
                   </div>
                 ))}
               </div>
 
               <Separator />
 
-              {/* Price Breakdown */}
-              <div className="space-y-2">
+              <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span>₹{subtotal.toFixed(2)}</span>
+                  <span>₹{totalPrice.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Tax (18%)</span>
-                  <span>₹{tax.toFixed(2)}</span>
+                  <span className="flex items-center gap-1">
+                    Shipping
+                    {totalPrice > 500 && (
+                      <Badge variant="secondary" className="text-xs">FREE</Badge>
+                    )}
+                  </span>
+                  <span>{shippingCost === 0 ? "Free" : `₹${shippingCost}`}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Shipping</span>
-                  <span>{shipping === 0 ? "Free" : `₹${shipping.toFixed(2)}`}</span>
+                  <span>Tax (18% GST)</span>
+                  <span>₹{taxAmount.toLocaleString()}</span>
                 </div>
-                {discount > 0 && (
-                  <div className="flex justify-between text-green-600">
-                    <span>Discount</span>
-                    <span>-₹{discount.toFixed(2)}</span>
-                  </div>
-                )}
                 <Separator />
                 <div className="flex justify-between font-bold text-lg">
                   <span>Total</span>
-                  <span>₹{total.toFixed(2)}</span>
+                  <span>₹{finalTotal.toLocaleString()}</span>
                 </div>
               </div>
 
-              <Button onClick={handleCheckout} disabled={isProcessing} className="w-full" size="lg">
-                {isProcessing ? "Processing..." : `Pay ₹${total.toFixed(2)}`}
-              </Button>
+              {totalPrice <= 500 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-800">
+                    💡 Add ₹{(500 - totalPrice).toLocaleString()} more to get free shipping!
+                  </p>
+                </div>
+              )}
 
-              <div className="text-xs text-muted-foreground text-center">
-                By placing this order, you agree to our Terms of Service and Privacy Policy
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <Truck className="h-4 w-4 text-green-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-green-800">Fast Delivery</p>
+                    <p className="text-xs text-green-600">Get it by tomorrow if you order within 2 hours</p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

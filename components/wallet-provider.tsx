@@ -178,7 +178,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       if (savedTransactions) {
         try {
-          const parsedTransactions = JSON.parse(savedTransactions)
+          const parsedTransactions = JSON.parse(savedTransactions).map((tx: any) => ({
+            ...tx,
+            timestamp: new Date(tx.timestamp)
+          }))
           setTransactions(parsedTransactions)
         } catch (error) {
           console.error("Error parsing saved transactions:", error)

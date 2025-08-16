@@ -195,7 +195,7 @@ export function WalletModal({ open, onOpenChange }: WalletModalProps) {
                             <div>
                               <p className="font-medium text-sm">{tx.description}</p>
                               <p className="text-xs text-muted-foreground">
-                                {tx.timestamp.toLocaleDateString()} {tx.timestamp.toLocaleTimeString()}
+                                {new Date(tx.timestamp).toLocaleDateString()} {new Date(tx.timestamp).toLocaleTimeString()}
                               </p>
                             </div>
                           </div>
