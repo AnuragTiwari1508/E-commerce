@@ -3,8 +3,6 @@
 import { useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { getProductById } from "@/lib/products"
-import { WalletProvider } from "@/components/wallet-provider"
-import { CartProvider } from "@/components/cart-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -342,10 +340,6 @@ function ProductPageContent({ params }: ProductPageProps) {
 
 export default function ProductPage({ params }: ProductPageProps) {
   return (
-    <WalletProvider>
-      <CartProvider>
-        <ProductPageContent params={params} />
-      </CartProvider>
-    </WalletProvider>
+    <ProductPageContent params={params} />
   )
 }

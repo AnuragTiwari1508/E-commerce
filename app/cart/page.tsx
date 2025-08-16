@@ -9,8 +9,6 @@ import { Input } from "@/components/ui/input"
 import { ShoppingCart, Wallet, Menu, X, ArrowLeft, Plus, Minus, Trash2, Tag } from "lucide-react"
 import { useWallet } from "@/components/wallet-provider"
 import { useCart } from "@/components/cart-provider"
-import { WalletProvider } from "@/components/wallet-provider"
-import { CartProvider } from "@/components/cart-provider"
 import Link from "next/link"
 
 function CartPageContent() {
@@ -316,10 +314,6 @@ function CartPageContent() {
 
 export default function CartPage() {
   return (
-    <WalletProvider>
-      <CartProvider>
-        <CartPageContent />
-      </CartProvider>
-    </WalletProvider>
+    <CartPageContent />
   )
 }

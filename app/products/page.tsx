@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation"
 import { ProductCard } from "@/components/product-card"
 import { ProductFilters } from "@/components/product-filters"
 import { products, getProductsByCategory, searchProducts, filterProductsByPrice, sortProducts } from "@/lib/products"
-import { WalletProvider } from "@/components/wallet-provider"
-import { CartProvider } from "@/components/cart-provider"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ShoppingCart, Wallet, Menu, X, ArrowLeft } from "lucide-react"
@@ -237,10 +235,6 @@ function ProductsPageContent() {
 
 export default function ProductsPage() {
   return (
-    <WalletProvider>
-      <CartProvider>
-        <ProductsPageContent />
-      </CartProvider>
-    </WalletProvider>
+    <ProductsPageContent />
   )
 }
