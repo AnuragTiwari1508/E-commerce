@@ -314,7 +314,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you have any questions or need help with setup, please:
 1. Check the [Issues](https://github.com/AnuragTiwari1508/E-commerce/issues) section
 2. Create a new issue with detailed information
-3. Contact: [your-email@example.com]
+3. Contact: tiwarianurag342409@gmail.com
 
 ---
 
